@@ -1,0 +1,26 @@
+from flask import Flask
+from flask_cors import CORS
+
+from app.extensions import socketio
+from app.routes.device_routes import device_bp
+from app.routes.auth_routes import auth_bp
+
+
+def create_app():
+    app = Flask(__name__)
+
+    CORS(app, origins=["http://localhost:5173"])
+
+    socketio.init_app(app, cors_allowed_origins=["http://localhost:5173"])
+
+    app.register_blueprint(device_bp, url_prefix="/api/device")
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
+
+    @app.route("/api/health")
+    def health():
+        return {
+            "status": "ok",
+            "message": "Flask backend is running"
+        }
+
+    return app
