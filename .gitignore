@@ -48,3 +48,29 @@ my_database/*.png
 
 # DeepFace cache files
 my_database/representations_*.pkl
+
+# Python tooling / tests
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Flask/SQLite database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# VS Code, if you don't want to share editor settings
+.vscode/
+
+# More frontend env files
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+frontend/.env.test.local
+
+# Backend uploads inside app, if you later store them there
+app/uploads/
