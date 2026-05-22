@@ -1,0 +1,50 @@
+# =========================
+# Operating System & IDE (PyCharm)
+# =========================
+.DS_Store
+.idea/
+
+# =========================
+# Frontend (Vue 3 / Vite)
+# =========================
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.eslintcache
+frontend/.env
+frontend/.env.*.local
+npm-debug.log*
+
+# =========================
+# Backend (Flask at Root)
+# =========================
+# Environments
+venv/
+env/
+.venv/
+
+# Compiled object files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Flask & Configs
+instance/
+.env
+.flaskenv
+
+# =========================
+# App Specific (Face ID & Camera)
+# =========================
+# Ignore temporary image streams/snapshots
+temp_snapshot.jpg
+temp_snapshot.jpeg
+uploads/
+
+# Ignore personal face data
+my_database/*.jpg
+my_database/*.jpeg
+my_database/*.png
+
+# DeepFace cache files
+my_database/representations_*.pkl
