@@ -18,7 +18,8 @@ DEVICE_STATE = {
 
     "actuators": {
         "fan": False,
-        "ledColor": "#ff0000"
+        "ledColor": "#ff0000",
+        "manualFanOverride": False
     },
 
     "auth": {
@@ -371,3 +372,12 @@ def consume_pending_commands():
 def clear_commands():
     DEVICE_STATE["commands"] = []
     return DEVICE_STATE["commands"]
+
+def set_manual_fan_override(is_override):
+    DEVICE_STATE["actuators"]["manualFanOverride"] = bool(is_override)
+    return DEVICE_STATE["actuators"]
+
+
+def clear_manual_fan_override():
+    DEVICE_STATE["actuators"]["manualFanOverride"] = False
+    return DEVICE_STATE["actuators"]

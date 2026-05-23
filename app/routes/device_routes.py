@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify, request
 from app.extensions import socketio
 from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands, update_sensors, update_fan_state, update_led_color, update_settings
 from app.services.socket_service import emit_socket_event, emit_sensor_update, emit_timeline_update, emit_actuator_update, emit_settings_update
+from app.services.auto_fan_service import evaluate_auto_fan
+from app.services.device_state import set_manual_fan_override
 device_bp = Blueprint("device", __name__)
 
 
@@ -124,6 +126,7 @@ def receive_sensor_data():
     )
 
     emit_sensor_update(sensor_data)
+    auto_fan_result = evaluate_auto_fan()
 
     if presence is not None:
         if presence:
@@ -148,7 +151,8 @@ def receive_sensor_data():
     return jsonify({
         "status": "ok",
         "message": "Sensor data received",
-        "sensors": sensor_data
+        "sensors": sensor_data,
+        "autoFan": auto_fan_result
     })
 
 @device_bp.route("/fan", methods=["POST"])
@@ -157,6 +161,8 @@ def set_fan():
     state = bool(data.get("state"))
 
     actuator_data = update_fan_state(state)
+    set_manual_fan_override(True)
+
 
     command = add_command(
         command_type="SET_FAN",

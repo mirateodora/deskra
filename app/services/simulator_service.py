@@ -17,6 +17,8 @@ from app.services.socket_service import (
     emit_state_update
 )
 
+from app.services.auto_fan_service import evaluate_auto_fan
+
 
 def simulate_sensor_values():
     temperature = round(random.uniform(22.0, 29.0), 1)
@@ -30,6 +32,7 @@ def simulate_sensor_values():
     set_device_connected(True)
 
     emit_sensor_update(sensor_data)
+    evaluate_auto_fan()
 
     timeline_event = add_timeline_event(
         event_type="simulator",
@@ -102,6 +105,7 @@ def simulate_temperature_increase():
     set_device_connected(True)
 
     emit_sensor_update(sensor_data)
+    evaluate_auto_fan()
 
     timeline_event = add_timeline_event(
         event_type="sensor",
