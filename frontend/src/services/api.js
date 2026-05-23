@@ -76,6 +76,26 @@ export const api = {
     body: JSON.stringify(userData),
   });
   },
+  setFan(state) {
+    return request("/device/fan", {
+      method: "POST",
+      body: JSON.stringify({ state }),
+    });
+  },
+
+  setLedColor(color) {
+    return request("/device/led", {
+      method: "POST",
+      body: JSON.stringify({ color }),
+    });
+  },
+
+  setTemperatureThreshold(temperatureThreshold) {
+    return request("/settings/temperature-threshold", {
+      method: "POST",
+      body: JSON.stringify({ temperatureThreshold }),
+    });
+  },
 };
 
 export default api;

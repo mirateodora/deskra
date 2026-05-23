@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from app.extensions import socketio
-from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands, update_sensors
-from app.services.socket_service import emit_socket_event, emit_sensor_update, emit_timeline_update
+from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands, update_sensors, update_fan_state, update_led_color, update_settings
+from app.services.socket_service import emit_socket_event, emit_sensor_update, emit_timeline_update, emit_actuator_update, emit_settings_update
 device_bp = Blueprint("device", __name__)
 
 
@@ -149,4 +149,79 @@ def receive_sensor_data():
         "status": "ok",
         "message": "Sensor data received",
         "sensors": sensor_data
+    })
+
+@device_bp.route("/fan", methods=["POST"])
+def set_fan():
+    data = request.get_json() or {}
+    state = bool(data.get("state"))
+
+    actuator_data = update_fan_state(state)
+
+    command = add_command(
+        command_type="SET_FAN",
+        value=state,
+        payload={
+            "source": "dashboard"
+        }
+    )
+
+    timeline_event = add_timeline_event(
+        event_type="actuator",
+        message=f"Fan turned {'on' if state else 'off'} from dashboard",
+        metadata={
+            "state": state,
+            "commandId": command["id"]
+        }
+    )
+
+    emit_actuator_update(actuator_data)
+    emit_socket_event_name = "fan_update"
+    from app.services.socket_service import emit_socket_event
+    emit_socket_event(emit_socket_event_name, actuator_data)
+    emit_timeline_update(timeline_event)
+
+    return jsonify({
+        "status": "ok",
+        "message": f"Fan turned {'on' if state else 'off'}",
+        "actuators": actuator_data,
+        "command": command,
+        "timelineEvent": timeline_event
+    })
+
+@device_bp.route("/led", methods=["POST"])
+def set_led():
+    data = request.get_json() or {}
+    color = data.get("color", "#ff0000")
+
+    actuator_data = update_led_color(color)
+
+    command = add_command(
+        command_type="SET_LED_COLOR",
+        value=color,
+        payload={
+            "source": "dashboard"
+        }
+    )
+
+    timeline_event = add_timeline_event(
+        event_type="actuator",
+        message=f"LED color changed to {color} from dashboard",
+        metadata={
+            "color": color,
+            "commandId": command["id"]
+        }
+    )
+
+    emit_actuator_update(actuator_data)
+    from app.services.socket_service import emit_socket_event
+    emit_socket_event("led_update", actuator_data)
+    emit_timeline_update(timeline_event)
+
+    return jsonify({
+        "status": "ok",
+        "message": "LED color updated",
+        "actuators": actuator_data,
+        "command": command,
+        "timelineEvent": timeline_event
     })

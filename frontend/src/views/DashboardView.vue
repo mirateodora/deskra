@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useDashboardStore } from "@/stores/dashboardStore";
+import api from "@/services/api";
 
 const router = useRouter();
 const dashboardStore = useDashboardStore();
@@ -58,6 +59,12 @@ const latestTimeline = computed(() => {
   return dashboardStore.timeline.slice(0, 5);
 });
 
+const latestCommand = computed(() => {
+  return dashboardStore.commands.length
+    ? dashboardStore.commands[0]
+    : null;
+});
+
 function goHome() {
   router.push("/");
 }
@@ -76,6 +83,46 @@ function goToLogs() {
 
 function goToSimulator() {
   router.push("/simulator");
+}
+
+async function toggleFan() {
+  const nextState = !dashboardStore.actuators.fan;
+
+  try {
+    const response = await api.setFan(nextState);
+
+    dashboardStore.applyActuatorUpdate(response.actuators);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.command) {
+      dashboardStore.commands.unshift(response.command);
+    }
+  } catch (error) {
+    console.error("Failed to toggle fan:", error);
+  }
+}
+
+async function changeLedColor(event) {
+  const color = event.target.value;
+
+  try {
+    const response = await api.setLedColor(color);
+
+    dashboardStore.applyActuatorUpdate(response.actuators);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.command) {
+      dashboardStore.commands.unshift(response.command);
+    }
+  } catch (error) {
+    console.error("Failed to change LED:", error);
+  }
 }
 </script>
 
@@ -197,7 +244,7 @@ function goToSimulator() {
                 <p>Current state: {{ fanDisplay }}</p>
               </div>
 
-              <button class="small-btn">
+              <button class="small-btn" @click="toggleFan">
                 Toggle
               </button>
             </div>
@@ -208,10 +255,12 @@ function goToSimulator() {
                 <p>{{ dashboardStore.actuators.ledColor }}</p>
               </div>
 
-              <div
-                class="color-preview"
-                :style="{ background: dashboardStore.actuators.ledColor }"
-              ></div>
+              <input
+                class="dashboard-color-input"
+                type="color"
+                :value="dashboardStore.actuators.ledColor"
+                @change="changeLedColor"
+              />
             </div>
 
             <div class="control-row">
@@ -224,6 +273,15 @@ function goToSimulator() {
                 Edit
               </button>
             </div>
+          </div>
+          <div class="command-status">
+            <strong>Latest command</strong>
+            <p v-if="latestCommand">
+              {{ latestCommand.type }} → {{ latestCommand.status }}
+            </p>
+            <p v-else>
+              No commands sent yet
+            </p>
           </div>
         </article>
 
@@ -616,6 +674,16 @@ button:hover {
   color: #2f6f5e;
 }
 
+.dashboard-color-input {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 15px;
+  background: transparent;
+  cursor: pointer;
+}
+
 .color-preview {
   width: 42px;
   height: 42px;
@@ -741,6 +809,23 @@ button:hover {
   font-size: 14px;
 }
 
+.command-status {
+  margin-top: 14px;
+  padding: 15px;
+  border-radius: 18px;
+  background: #e4f0ea;
+}
+
+.command-status strong {
+  color: #1f2a37;
+}
+
+.command-status p {
+  margin: 5px 0 0;
+  color: #2f6f5e;
+  font-weight: 800;
+}
+
 @media (max-width: 1050px) {
   .quick-grid,
   .bottom-grid {
@@ -795,5 +880,7 @@ button:hover {
   .dashboard-footer {
     flex-direction: column;
   }
+
+
 }
 </style>

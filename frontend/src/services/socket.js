@@ -137,4 +137,18 @@ socket.on("login_failed", (data) => {
   alert(data.reason || "Face login failed. Please try again or use manual login.");
 });
 
+socket.on("fan_update", (data) => {
+  console.log("Received fan_update:", data);
+
+  const store = getStore();
+  store.applyActuatorUpdate(data);
+});
+
+socket.on("led_update", (data) => {
+  console.log("Received led_update:", data);
+
+  const store = getStore();
+  store.applyActuatorUpdate(data);
+});
+
 export default socket;
