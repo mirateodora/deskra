@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useDashboardStore } from "@/stores/dashboardStore";
 import api from "@/services/api";
@@ -55,8 +55,48 @@ const pomodoroModeLabel = computed(() => {
   return "Idle";
 });
 
+const pomodoroProgressDegrees = computed(() => {
+  const mode = dashboardStore.pomodoro.mode;
+  const remaining = dashboardStore.pomodoro.remainingSeconds || 0;
+
+  let totalSeconds = dashboardStore.pomodoro.focusMinutes * 60;
+
+  if (mode === "break") {
+    totalSeconds = dashboardStore.pomodoro.breakMinutes * 60;
+  }
+
+  if (!totalSeconds || mode === "idle") {
+    return 360;
+  }
+
+  const progress = remaining / totalSeconds;
+
+  return Math.max(0, Math.min(360, progress * 360));
+});
+
+const timerCircleStyle = computed(() => {
+  return {
+    background: `
+      radial-gradient(circle, #fffaf3 52%, transparent 54%),
+      conic-gradient(
+        #2f6f5e 0deg,
+        #65b891 ${pomodoroProgressDegrees.value}deg,
+        #eadcc9 ${pomodoroProgressDegrees.value}deg,
+        #eadcc9 360deg
+      )
+    `,
+  };
+});
+
 const latestTimeline = computed(() => {
-  return dashboardStore.timeline.slice(0, 5);
+  return [...dashboardStore.timeline]
+    .sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime() || 0;
+      const timeB = new Date(b.timestamp).getTime() || 0;
+
+      return timeB - timeA;
+    })
+    .slice(0, 5);
 });
 
 const latestCommand = computed(() => {
@@ -64,6 +104,13 @@ const latestCommand = computed(() => {
     ? dashboardStore.commands[0]
     : null;
 });
+
+const selectedFocusMinutes = ref(dashboardStore.pomodoro.focusMinutes || 25);
+const selectedBreakMinutes = ref(dashboardStore.pomodoro.breakMinutes || 5);
+const sessionTask = ref("");
+const sessionNotes = ref("");
+const sessionProductive = ref(true);
+const sessionRating = ref(4);
 
 function goHome() {
   router.push("/");
@@ -123,6 +170,128 @@ async function changeLedColor(event) {
   } catch (error) {
     console.error("Failed to change LED:", error);
   }
+}
+
+async function startPomodoro() {
+  try {
+    const response = await api.startPomodoro({
+      focusMinutes: Number(selectedFocusMinutes.value),
+      breakMinutes: Number(selectedBreakMinutes.value),
+      selectedTask: dashboardStore.pomodoro.selectedTask,
+    });
+
+    dashboardStore.applyPomodoroUpdate(response.pomodoro);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.command) {
+      dashboardStore.commands.unshift(response.command);
+    }
+  } catch (error) {
+    console.error("Failed to start pomodoro:", error);
+  }
+}
+
+async function pausePomodoro() {
+  try {
+    const response = await api.pausePomodoro();
+
+    dashboardStore.applyPomodoroUpdate(response.pomodoro);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.command) {
+      dashboardStore.commands.unshift(response.command);
+    }
+  } catch (error) {
+    console.error("Failed to pause pomodoro:", error);
+  }
+}
+
+async function resumePomodoro() {
+  try {
+    const response = await api.resumePomodoro();
+
+    dashboardStore.applyPomodoroUpdate(response.pomodoro);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.command) {
+      dashboardStore.commands.unshift(response.command);
+    }
+  } catch (error) {
+    console.error("Failed to resume pomodoro:", error);
+  }
+}
+
+async function stopPomodoro() {
+  try {
+    const response = await api.stopPomodoro();
+
+    dashboardStore.applyPomodoroUpdate(response.pomodoro);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.command) {
+      dashboardStore.commands.unshift(response.command);
+    }
+  } catch (error) {
+    console.error("Failed to stop pomodoro:", error);
+  }
+}
+
+async function savePomodoroSession() {
+  try {
+    const response = await api.savePomodoroSession({
+      task: sessionTask.value || dashboardStore.pomodoro.selectedTask || "",
+      notes: sessionNotes.value,
+      productive: sessionProductive.value,
+      rating: Number(sessionRating.value),
+    });
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    dashboardStore.setPomodoroEndModal(false);
+
+    sessionTask.value = "";
+    sessionNotes.value = "";
+    sessionProductive.value = true;
+    sessionRating.value = 4;
+  } catch (error) {
+    console.error("Failed to save pomodoro session:", error);
+  }
+}
+
+function closePomodoroModal() {
+  dashboardStore.setPomodoroEndModal(false);
+}
+
+function formatTimelineTime(timestamp) {
+  if (!timestamp) return "No time";
+
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+
+  return date.toLocaleString([], {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 </script>
 
@@ -200,33 +369,91 @@ async function changeLedColor(event) {
             </span>
           </div>
 
-          <div class="timer-circle">
+          <div class="timer-circle" :style="timerCircleStyle">
             <span>{{ dashboardStore.formattedRemainingTime }}</span>
           </div>
 
-          <div class="pomodoro-meta">
-            <div>
-              <p>Focus</p>
-              <strong>{{ dashboardStore.pomodoro.focusMinutes }} min</strong>
-            </div>
+          <div class="pomodoro-selectors">
+  <label>
+    Focus minutes
+    <input
+      v-model="selectedFocusMinutes"
+      type="number"
+      min="1"
+      max="120"
+      :disabled="dashboardStore.pomodoro.running"
+    />
+  </label>
 
-            <div>
-              <p>Break</p>
-              <strong>{{ dashboardStore.pomodoro.breakMinutes }} min</strong>
-            </div>
+  <label>
+    Break minutes
+    <input
+      v-model="selectedBreakMinutes"
+      type="number"
+      min="1"
+      max="60"
+      :disabled="dashboardStore.pomodoro.running"
+    />
+  </label>
+</div>
 
-            <div>
-              <p>Absences</p>
-              <strong>{{ dashboardStore.pomodoro.deskAbsenceCount }}</strong>
-            </div>
-          </div>
+<div class="pomodoro-actions">
+  <button
+    class="pomodoro-btn primary"
+    @click="startPomodoro"
+    :disabled="dashboardStore.pomodoro.running"
+  >
+    Start
+  </button>
 
-          <p class="selected-task">
-            Selected task:
-            <strong>
-              {{ dashboardStore.pomodoro.selectedTask || "No task selected yet" }}
-            </strong>
-          </p>
+  <button
+    class="pomodoro-btn"
+    @click="pausePomodoro"
+    :disabled="!dashboardStore.pomodoro.running"
+  >
+    Pause
+  </button>
+
+  <button
+    class="pomodoro-btn"
+    @click="resumePomodoro"
+    :disabled="dashboardStore.pomodoro.mode !== 'paused'"
+  >
+    Resume
+  </button>
+
+  <button
+    class="pomodoro-btn danger"
+    @click="stopPomodoro"
+    :disabled="dashboardStore.pomodoro.mode === 'idle'"
+  >
+    Stop
+  </button>
+</div>
+
+  <div class="pomodoro-meta">
+    <div>
+      <p>Focus</p>
+      <strong>{{ dashboardStore.pomodoro.focusMinutes }} min</strong>
+    </div>
+
+    <div>
+      <p>Break</p>
+      <strong>{{ dashboardStore.pomodoro.breakMinutes }} min</strong>
+    </div>
+
+    <div>
+      <p>Absences</p>
+      <strong>{{ dashboardStore.pomodoro.deskAbsenceCount }}</strong>
+    </div>
+  </div>
+
+  <p class="selected-task">
+    Selected task:
+    <strong>
+      {{ dashboardStore.pomodoro.selectedTask || "No task selected yet" }}
+    </strong>
+  </p>
         </article>
 
         <article class="panel controls-panel">
@@ -328,7 +555,7 @@ async function changeLedColor(event) {
 
               <div>
                 <strong>{{ event.message }}</strong>
-                <p>{{ event.timestamp }}</p>
+                <p>{{ formatTimelineTime(event.timestamp) }}</p>
               </div>
             </div>
           </div>
@@ -371,6 +598,65 @@ async function changeLedColor(event) {
         <span>Last update: {{ dashboardStore.device.lastUpdate || "No updates yet" }}</span>
       </footer>
     </section>
+    <section
+  v-if="dashboardStore.showPomodoroEndModal"
+  class="modal-backdrop"
+>
+  <div class="session-modal">
+    <button class="modal-close" @click="closePomodoroModal">
+      ×
+    </button>
+
+    <p class="eyebrow">Session complete</p>
+
+    <h2>What did you work on?</h2>
+
+    <p class="modal-description">
+      Save a quick summary so your analytics can reflect what happened during this focus block.
+    </p>
+
+    <label>
+      Task
+      <input
+        v-model="sessionTask"
+        type="text"
+        placeholder="e.g. Write API endpoints"
+      />
+    </label>
+
+    <label>
+      Notes
+      <textarea
+        v-model="sessionNotes"
+        rows="4"
+        placeholder="What did you finish? Any blockers?"
+      ></textarea>
+    </label>
+
+    <label>
+      Productivity rating
+      <select v-model="sessionRating">
+        <option :value="1">1 - Low focus</option>
+        <option :value="2">2 - Some progress</option>
+        <option :value="3">3 - Good</option>
+        <option :value="4">4 - Very good</option>
+        <option :value="5">5 - Deep work</option>
+      </select>
+    </label>
+
+    <label class="checkbox-row">
+      <input
+        v-model="sessionProductive"
+        type="checkbox"
+      />
+      This session was productive
+    </label>
+
+    <button class="save-session-btn" @click="savePomodoroSession">
+      Save Session
+    </button>
+  </div>
+</section>
   </main>
 </template>
 
@@ -584,9 +870,6 @@ button:hover {
   place-items: center;
   margin: 10px auto 26px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle, #fffaf3 52%, transparent 54%),
-    conic-gradient(#2f6f5e 0deg, #65b891 210deg, #eadcc9 210deg);
   box-shadow: inset 0 0 0 10px rgba(255, 250, 243, 0.8);
 }
 
@@ -620,6 +903,82 @@ button:hover {
 .pomodoro-meta strong {
   font-size: 18px;
   color: #1f2a37;
+}
+
+.pomodoro-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.pomodoro-selectors label {
+  display: grid;
+  gap: 7px;
+  color: #4c423a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.pomodoro-selectors input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid #eadcc9;
+  border-radius: 14px;
+  background: #fffdf9;
+  color: #24313f;
+  font-size: 15px;
+  outline: none;
+}
+
+.pomodoro-selectors input:focus {
+  border-color: #65b891;
+  box-shadow: 0 0 0 4px rgba(101, 184, 145, 0.16);
+}
+
+.pomodoro-selectors input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pomodoro-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.pomodoro-btn {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #e4f0ea;
+  color: #2f6f5e;
+  font-size: 14px;
+}
+
+.pomodoro-btn.primary {
+  background: #2f6f5e;
+  color: #fffaf3;
+  box-shadow: 0 12px 24px rgba(47, 111, 94, 0.18);
+}
+
+.pomodoro-btn.danger {
+  background: #ffe7e1;
+  color: #a54b3f;
+}
+
+.pomodoro-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 680px) {
+  .pomodoro-selectors,
+  .pomodoro-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .selected-task {
@@ -882,5 +1241,105 @@ button:hover {
   }
 
 
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(31, 42, 55, 0.42);
+  backdrop-filter: blur(8px);
+}
+
+.session-modal {
+  position: relative;
+  width: min(520px, 100%);
+  padding: 30px;
+  border-radius: 30px;
+  background: #fffaf3;
+  box-shadow: 0 30px 90px rgba(31, 42, 55, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  background: #f7efe5;
+  color: #6c5f53;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.session-modal h2 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.04em;
+  color: #1f2a37;
+}
+
+.modal-description {
+  margin: 12px 0 22px;
+  color: #6c5f53;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.session-modal label {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: #4c423a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.session-modal input,
+.session-modal textarea,
+.session-modal select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 1px solid #eadcc9;
+  border-radius: 16px;
+  background: #fffdf9;
+  color: #24313f;
+  font-size: 16px;
+  outline: none;
+  font-family: inherit;
+}
+
+.session-modal input:focus,
+.session-modal textarea:focus,
+.session-modal select:focus {
+  border-color: #65b891;
+  box-shadow: 0 0 0 4px rgba(101, 184, 145, 0.16);
+}
+
+.checkbox-row {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 10px !important;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+.save-session-btn {
+  width: 100%;
+  padding: 15px 18px;
+  border-radius: 16px;
+  background: #2f6f5e;
+  color: #fffaf3;
+  font-size: 16px;
+  box-shadow: 0 14px 30px rgba(47, 111, 94, 0.22);
 }
 </style>

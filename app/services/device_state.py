@@ -54,6 +54,8 @@ DEVICE_STATE = {
 
     "tasks": [],
 
+    "pomodoroSessions": [],
+
     "commands": []
 }
 
@@ -381,3 +383,31 @@ def set_manual_fan_override(is_override):
 def clear_manual_fan_override():
     DEVICE_STATE["actuators"]["manualFanOverride"] = False
     return DEVICE_STATE["actuators"]
+
+def add_pomodoro_session(task=None, notes="", productive=False, rating=None, metadata=None):
+    if metadata is None:
+        metadata = {}
+
+    session = {
+        "id": len(DEVICE_STATE["pomodoroSessions"]) + 1,
+        "user": DEVICE_STATE["auth"]["currentUser"],
+        "task": task,
+        "notes": notes,
+        "productive": bool(productive),
+        "rating": rating,
+        "focusMinutes": DEVICE_STATE["pomodoro"]["focusMinutes"],
+        "breakMinutes": DEVICE_STATE["pomodoro"]["breakMinutes"],
+        "deskAbsenceCount": DEVICE_STATE["pomodoro"]["deskAbsenceCount"],
+        "startedAt": DEVICE_STATE["pomodoro"]["startedAt"],
+        "endedAt": now_iso(),
+        "metadata": metadata,
+        "createdAt": now_iso()
+    }
+
+    DEVICE_STATE["pomodoroSessions"].insert(0, session)
+
+    return session
+
+
+def get_pomodoro_sessions():
+    return DEVICE_STATE["pomodoroSessions"]

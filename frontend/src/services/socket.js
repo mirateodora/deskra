@@ -151,4 +151,20 @@ socket.on("led_update", (data) => {
   store.applyActuatorUpdate(data);
 });
 
+socket.on("focus_session_ended", (data) => {
+  console.log("Received focus_session_ended:", data);
+
+  const store = getStore();
+
+  if (data.pomodoro) {
+    store.applyPomodoroUpdate(data.pomodoro);
+  }
+
+  if (data.timelineEvent) {
+    store.addTimelineEvent(data.timelineEvent);
+  }
+
+  store.setPomodoroEndModal(true);
+});
+
 export default socket;

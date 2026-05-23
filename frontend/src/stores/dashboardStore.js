@@ -57,6 +57,7 @@ export const useDashboardStore = defineStore("dashboard", {
     accessLogs: [],
     tasks: [],
     commands: [],
+    showPomodoroEndModal: false,
   }),
 
   getters: {
@@ -152,6 +153,10 @@ export const useDashboardStore = defineStore("dashboard", {
 
     setSocketConnected(status) {
       this.socketConnected = status;
+    },
+
+    setPomodoroEndModal(status) {
+      this.showPomodoroEndModal = status;
     },
   },
 });

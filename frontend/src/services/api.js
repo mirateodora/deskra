@@ -96,6 +96,52 @@ export const api = {
       body: JSON.stringify({ temperatureThreshold }),
     });
   },
+
+  getPomodoroState() {
+  return request("/pomodoro/state");
+  },
+
+  startPomodoro(payload) {
+    return request("/pomodoro/start", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  pausePomodoro() {
+    return request("/pomodoro/pause", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
+  resumePomodoro() {
+    return request("/pomodoro/resume", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
+  stopPomodoro() {
+    return request("/pomodoro/stop", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
+  completePomodoro(payload = {}) {
+    return request("/pomodoro/complete", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  savePomodoroSession(data) {
+  return request("/pomodoro/session-ended", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+},
 };
 
 export default api;
