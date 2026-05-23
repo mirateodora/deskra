@@ -1,7 +1,9 @@
+from pathlib import Path
+
 from flask import Flask
 from flask_cors import CORS
 
-from app.extensions import socketio
+from app.extensions import socketio, db, migrate
 from app.routes.device_routes import device_bp
 from app.routes.auth_routes import auth_bp
 from app.routes.simulator_routes import simulator_bp
@@ -11,12 +13,24 @@ from app.routes.tasks_routes import tasks_bp
 from app.routes.logs_routes import logs_bp
 from app.routes.analytics_routes import analytics_bp
 
+
 def create_app():
     app = Flask(__name__)
+
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    DB_PATH = BASE_DIR / "deskra.sqlite3"
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     CORS(app, origins=["http://localhost:5173"])
 
     socketio.init_app(app, cors_allowed_origins=["http://localhost:5173"])
+    db.init_app(app)
+    migrate.init_app(app, db)
+
+    # Important: import models so Flask-Migrate can detect them
+    from app import models  # noqa: F401
 
     app.register_blueprint(device_bp, url_prefix="/api/device")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
