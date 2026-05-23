@@ -8,6 +8,8 @@ const socket = io(SOCKET_URL, {
   autoConnect: true,
 });
 
+
+
 function getStore() {
   return useDashboardStore();
 }
@@ -91,6 +93,48 @@ socket.on("access_log_update", (data) => {
 
   const store = getStore();
   store.addAccessLog(data);
+});
+
+socket.on("login_success", (data) => {
+  console.log("Received login_success:", data);
+
+  const store = getStore();
+
+  if (data.auth) {
+    store.applyAuthUpdate(data.auth);
+  } else {
+    store.applyAuthUpdate({
+      locked: false,
+      currentUser: data.user,
+      loginMethod: "face_id",
+    });
+  }
+
+  if (data.timelineEvent) {
+    store.addTimelineEvent(data.timelineEvent);
+  }
+
+  if (data.accessLog) {
+    store.addAccessLog(data.accessLog);
+  }
+
+  window.location.href = "/dashboard";
+});
+
+socket.on("login_failed", (data) => {
+  console.log("Received login_failed:", data);
+
+  const store = getStore();
+
+  if (data.timelineEvent) {
+    store.addTimelineEvent(data.timelineEvent);
+  }
+
+  if (data.accessLog) {
+    store.addAccessLog(data.accessLog);
+  }
+
+  alert(data.reason || "Face login failed. Please try again or use manual login.");
 });
 
 export default socket;

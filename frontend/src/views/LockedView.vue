@@ -26,6 +26,10 @@ function goToRegister() {
   router.push("/register");
 }
 
+function checkCamera() {
+  alert("Camera check placeholder. Later this will open ESP32-CAM preview/status.");
+}
+
 function continueAsGuest() {
   router.push("/dashboard");
 }
@@ -117,6 +121,10 @@ function continueAsGuest() {
               Register
             </button>
           </div>
+
+          <button class="camera-btn" @click="checkCamera">
+            Check Camera
+          </button>
 
           <button class="guest-btn" @click="continueAsGuest">
             Continue as Guest
@@ -449,6 +457,19 @@ button:hover {
 .secondary-btn {
   color: #2f6f5e;
   background: #e4f0ea;
+}
+
+.camera-btn {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f7efe5;
+  color: #2f6f5e;
+  font-size: 16px;
+}
+
+.camera-btn:hover {
+  box-shadow: 0 12px 26px rgba(47, 111, 94, 0.12);
 }
 
 .guest-btn {

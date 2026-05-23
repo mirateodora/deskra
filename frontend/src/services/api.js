@@ -63,6 +63,19 @@ export const api = {
   consumeCommands() {
     return request("/device/commands");
   },
+
+  manualLogin(credentials) {
+  return request("/auth/manual-login", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  });
+  },
+  registerUser(userData) {
+  return request("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(userData),
+  });
+  },
 };
 
 export default api;

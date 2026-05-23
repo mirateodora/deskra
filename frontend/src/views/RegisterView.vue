@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useDashboardStore } from "@/stores/dashboardStore";
+import api from "@/services/api";
 
 const router = useRouter();
 const dashboardStore = useDashboardStore();
@@ -56,45 +57,50 @@ async function handleRegister() {
   loading.value = true;
 
   try {
-    /*
-      Temporary frontend-only registration.
-      Later we will replace this with:
-      POST /api/auth/register
-    */
-
-    const newUser = {
-      id: Date.now(),
+    const response = await api.registerUser({
       name: name.value.trim(),
+      pin: pin.value.trim(),
       focusLedColor: focusLedColor.value,
       breakLedColor: breakLedColor.value,
-    };
-
-    dashboardStore.applyAuthUpdate({
-      locked: false,
-      currentUser: newUser,
-      loginMethod: "register",
-    });
-
-    dashboardStore.applySettingsUpdate({
-      focusLedColor: focusLedColor.value,
-      breakLedColor: breakLedColor.value,
-      defaultFocusMinutes: Number(focusMinutes.value),
-      defaultBreakMinutes: Number(breakMinutes.value),
+      focusMinutes: Number(focusMinutes.value),
+      breakMinutes: Number(breakMinutes.value),
       temperatureThreshold: Number(temperatureThreshold.value),
+      faceImageName: faceImageName.value,
     });
 
-    dashboardStore.applyActuatorUpdate({
-      ledColor: focusLedColor.value,
+    dashboardStore.applyAuthUpdate(response.auth);
+
+    if (response.settings) {
+      dashboardStore.applySettingsUpdate(response.settings);
+    }
+
+    if (response.user?.focusLedColor) {
+      dashboardStore.applyActuatorUpdate({
+        ledColor: response.user.focusLedColor,
+      });
+    }
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.accessLog) {
+      dashboardStore.addAccessLog(response.accessLog);
+    }
+
+    dashboardStore.applyPomodoroUpdate({
+      focusMinutes: Number(focusMinutes.value),
+      breakMinutes: Number(breakMinutes.value),
+      remainingSeconds: Number(focusMinutes.value) * 60,
     });
 
     router.push("/dashboard");
   } catch (error) {
-    errorMessage.value = "Registration failed. Please try again.";
+    errorMessage.value = error.message || "Registration failed. Please try again.";
   } finally {
     loading.value = false;
   }
 }
-
 function goBack() {
   router.push("/");
 }

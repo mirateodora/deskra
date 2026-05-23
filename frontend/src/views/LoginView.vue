@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useDashboardStore } from "@/stores/dashboardStore";
+import api from "@/services/api";
 
 const router = useRouter();
 const dashboardStore = useDashboardStore();
@@ -22,24 +23,30 @@ async function handleLogin() {
   loading.value = true;
 
   try {
-    /*
-      Temporary frontend-only login.
-      Later we will replace this with:
-      POST /api/auth/manual-login
-    */
-
-    dashboardStore.applyAuthUpdate({
-      locked: false,
-      currentUser: {
-        id: 1,
-        name: name.value.trim(),
-      },
-      loginMethod: "manual_pin",
+    const response = await api.manualLogin({
+      name: name.value.trim(),
+      pin: pin.value.trim(),
     });
+
+    dashboardStore.applyAuthUpdate(response.auth);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    if (response.accessLog) {
+      dashboardStore.addAccessLog(response.accessLog);
+    }
 
     router.push("/dashboard");
   } catch (error) {
-    errorMessage.value = "Login failed. Please try again.";
+    dashboardStore.applyAuthUpdate({
+      locked: true,
+      currentUser: null,
+      loginMethod: null,
+    });
+
+    errorMessage.value = error.message || "Invalid name or PIN.";
   } finally {
     loading.value = false;
   }
