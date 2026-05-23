@@ -77,3 +77,34 @@ app/uploads/
 
 # Face recognition registered images
 registered_faces/
+
+# =========================
+# Flask-Migrate / Alembic runtime noise
+# =========================
+migrations/__pycache__/
+migrations/versions/__pycache__/
+
+# =========================
+# Local database variants
+# =========================
+deskra.sqlite3
+instance/*.db
+instance/*.sqlite
+instance/*.sqlite3
+
+# =========================
+# Python build/package artifacts
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Local test/media files
+# =========================
+*.jpg
+*.jpeg
+*.png
+*.webp
+!frontend/src/assets/**
+!frontend/public/**
