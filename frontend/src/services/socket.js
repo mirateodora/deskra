@@ -167,4 +167,11 @@ socket.on("focus_session_ended", (data) => {
   store.setPomodoroEndModal(true);
 });
 
+socket.on("tasks_update", (tasks) => {
+  console.log("Received tasks_update:", tasks);
+
+  const store = getStore();
+  store.setTasks(tasks);
+});
+
 export default socket;

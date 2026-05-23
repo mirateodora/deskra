@@ -411,3 +411,72 @@ def add_pomodoro_session(task=None, notes="", productive=False, rating=None, met
 
 def get_pomodoro_sessions():
     return DEVICE_STATE["pomodoroSessions"]
+
+def get_tasks():
+    return DEVICE_STATE["tasks"]
+
+
+def add_task(title):
+    task = {
+        "id": len(DEVICE_STATE["tasks"]) + 1,
+        "title": title,
+        "completed": False,
+        "selected": False,
+        "createdAt": now_iso(),
+        "updatedAt": now_iso()
+    }
+
+    DEVICE_STATE["tasks"].insert(0, task)
+
+    return task
+
+
+def update_task(task_id, title=None, completed=None, selected=None):
+    task_id = int(task_id)
+
+    for task in DEVICE_STATE["tasks"]:
+        if task["id"] == task_id:
+            if title is not None:
+                task["title"] = title
+
+            if completed is not None:
+                task["completed"] = bool(completed)
+
+            if selected is not None:
+                task["selected"] = bool(selected)
+
+                if selected:
+                    for other_task in DEVICE_STATE["tasks"]:
+                        if other_task["id"] != task_id:
+                            other_task["selected"] = False
+
+                    DEVICE_STATE["pomodoro"]["selectedTask"] = task["title"]
+
+            task["updatedAt"] = now_iso()
+
+            return task
+
+    return None
+
+
+def delete_task(task_id):
+    task_id = int(task_id)
+
+    for task in DEVICE_STATE["tasks"]:
+        if task["id"] == task_id:
+            DEVICE_STATE["tasks"].remove(task)
+
+            if DEVICE_STATE["pomodoro"]["selectedTask"] == task["title"]:
+                DEVICE_STATE["pomodoro"]["selectedTask"] = None
+
+            return task
+
+    return None
+
+
+def get_selected_task():
+    for task in DEVICE_STATE["tasks"]:
+        if task.get("selected"):
+            return task
+
+    return None

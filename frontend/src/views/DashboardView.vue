@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useDashboardStore } from "@/stores/dashboardStore";
 import api from "@/services/api";
@@ -111,6 +111,9 @@ const sessionTask = ref("");
 const sessionNotes = ref("");
 const sessionProductive = ref(true);
 const sessionRating = ref(4);
+const newTaskTitle = ref("");
+const editingTaskId = ref(null);
+const editingTaskTitle = ref("");
 
 function goHome() {
   router.push("/");
@@ -177,7 +180,9 @@ async function startPomodoro() {
     const response = await api.startPomodoro({
       focusMinutes: Number(selectedFocusMinutes.value),
       breakMinutes: Number(selectedBreakMinutes.value),
-      selectedTask: dashboardStore.pomodoro.selectedTask,
+      selectedTask:
+        dashboardStore.tasks.find((task) => task.selected)?.title ||
+        dashboardStore.pomodoro.selectedTask,
     });
 
     dashboardStore.applyPomodoroUpdate(response.pomodoro);
@@ -293,6 +298,117 @@ function formatTimelineTime(timestamp) {
     minute: "2-digit",
   });
 }
+
+async function fetchTasks() {
+  try {
+    const response = await api.getTasks();
+    dashboardStore.setTasks(response.tasks);
+  } catch (error) {
+    console.error("Failed to fetch tasks:", error);
+  }
+}
+
+async function createTask() {
+  const title = newTaskTitle.value.trim();
+
+  if (!title) return;
+
+  try {
+    const response = await api.createTask(title);
+
+    dashboardStore.setTasks(response.tasks);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    newTaskTitle.value = "";
+  } catch (error) {
+    console.error("Failed to create task:", error);
+  }
+}
+
+function startEditingTask(task) {
+  editingTaskId.value = task.id;
+  editingTaskTitle.value = task.title;
+}
+
+async function saveEditedTask(task) {
+  const title = editingTaskTitle.value.trim();
+
+  if (!title) return;
+
+  try {
+    const response = await api.updateTask(task.id, {
+      title,
+    });
+
+    dashboardStore.setTasks(response.tasks);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+
+    editingTaskId.value = null;
+    editingTaskTitle.value = "";
+  } catch (error) {
+    console.error("Failed to edit task:", error);
+  }
+}
+
+async function toggleTaskComplete(task) {
+  try {
+    const response = await api.updateTask(task.id, {
+      completed: !task.completed,
+    });
+
+    dashboardStore.setTasks(response.tasks);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+  } catch (error) {
+    console.error("Failed to complete task:", error);
+  }
+}
+
+async function selectTask(task) {
+  try {
+    const response = await api.updateTask(task.id, {
+      selected: true,
+    });
+
+    dashboardStore.setTasks(response.tasks);
+
+    dashboardStore.applyPomodoroUpdate({
+      selectedTask: task.title,
+    });
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+  } catch (error) {
+    console.error("Failed to select task:", error);
+  }
+}
+
+async function removeTask(task) {
+  try {
+    const response = await api.deleteTask(task.id);
+
+    dashboardStore.setTasks(response.tasks);
+
+    if (response.timelineEvent) {
+      dashboardStore.addTimelineEvent(response.timelineEvent);
+    }
+  } catch (error) {
+    console.error("Failed to delete task:", error);
+  }
+}
+
+onMounted(() => {
+  fetchTasks();
+});
 </script>
 
 <template>
@@ -374,86 +490,86 @@ function formatTimelineTime(timestamp) {
           </div>
 
           <div class="pomodoro-selectors">
-  <label>
-    Focus minutes
-    <input
-      v-model="selectedFocusMinutes"
-      type="number"
-      min="1"
-      max="120"
-      :disabled="dashboardStore.pomodoro.running"
-    />
-  </label>
+            <label>
+              Focus minutes
+              <input
+                v-model="selectedFocusMinutes"
+                type="number"
+                min="1"
+                max="120"
+                :disabled="dashboardStore.pomodoro.running"
+              />
+            </label>
 
-  <label>
-    Break minutes
-    <input
-      v-model="selectedBreakMinutes"
-      type="number"
-      min="1"
-      max="60"
-      :disabled="dashboardStore.pomodoro.running"
-    />
-  </label>
-</div>
+            <label>
+              Break minutes
+              <input
+                v-model="selectedBreakMinutes"
+                type="number"
+                min="1"
+                max="60"
+                :disabled="dashboardStore.pomodoro.running"
+              />
+            </label>
+          </div>
 
-<div class="pomodoro-actions">
-  <button
-    class="pomodoro-btn primary"
-    @click="startPomodoro"
-    :disabled="dashboardStore.pomodoro.running"
-  >
-    Start
-  </button>
+          <div class="pomodoro-actions">
+            <button
+              class="pomodoro-btn primary"
+              @click="startPomodoro"
+              :disabled="dashboardStore.pomodoro.running"
+            >
+              Start
+            </button>
 
-  <button
-    class="pomodoro-btn"
-    @click="pausePomodoro"
-    :disabled="!dashboardStore.pomodoro.running"
-  >
-    Pause
-  </button>
+            <button
+              class="pomodoro-btn"
+              @click="pausePomodoro"
+              :disabled="!dashboardStore.pomodoro.running"
+            >
+              Pause
+            </button>
 
-  <button
-    class="pomodoro-btn"
-    @click="resumePomodoro"
-    :disabled="dashboardStore.pomodoro.mode !== 'paused'"
-  >
-    Resume
-  </button>
+            <button
+              class="pomodoro-btn"
+              @click="resumePomodoro"
+              :disabled="dashboardStore.pomodoro.mode !== 'paused'"
+            >
+              Resume
+            </button>
 
-  <button
-    class="pomodoro-btn danger"
-    @click="stopPomodoro"
-    :disabled="dashboardStore.pomodoro.mode === 'idle'"
-  >
-    Stop
-  </button>
-</div>
+            <button
+              class="pomodoro-btn danger"
+              @click="stopPomodoro"
+              :disabled="dashboardStore.pomodoro.mode === 'idle'"
+            >
+              Stop
+            </button>
+          </div>
 
-  <div class="pomodoro-meta">
-    <div>
-      <p>Focus</p>
-      <strong>{{ dashboardStore.pomodoro.focusMinutes }} min</strong>
-    </div>
+          <div class="pomodoro-meta">
+            <div>
+              <p>Focus</p>
+              <strong>{{ dashboardStore.pomodoro.focusMinutes }} min</strong>
+            </div>
 
-    <div>
-      <p>Break</p>
-      <strong>{{ dashboardStore.pomodoro.breakMinutes }} min</strong>
-    </div>
+            <div>
+              <p>Break</p>
+              <strong>{{ dashboardStore.pomodoro.breakMinutes }} min</strong>
+            </div>
 
-    <div>
-      <p>Absences</p>
-      <strong>{{ dashboardStore.pomodoro.deskAbsenceCount }}</strong>
-    </div>
-  </div>
+            <div>
+              <p>Absences</p>
+              <strong>{{ dashboardStore.pomodoro.deskAbsenceCount }}</strong>
+            </div>
+          </div>
 
-  <p class="selected-task">
-    Selected task:
-    <strong>
-      {{ dashboardStore.pomodoro.selectedTask || "No task selected yet" }}
-    </strong>
-  </p>
+          <p class="selected-task">
+            Selected task:
+            <strong>
+              {{ dashboardStore.pomodoro.selectedTask || "No task selected yet" }}
+            </strong>
+          </p>
         </article>
 
         <article class="panel controls-panel">
@@ -501,6 +617,7 @@ function formatTimelineTime(timestamp) {
               </button>
             </div>
           </div>
+
           <div class="command-status">
             <strong>Latest command</strong>
             <p v-if="latestCommand">
@@ -520,20 +637,77 @@ function formatTimelineTime(timestamp) {
             </div>
           </div>
 
+          <div class="task-create-row">
+            <input
+              v-model="newTaskTitle"
+              type="text"
+              placeholder="Add a focus task..."
+              @keyup.enter="createTask"
+            />
+
+            <button class="small-btn" @click="createTask">
+              Add
+            </button>
+          </div>
+
           <div v-if="dashboardStore.tasks.length" class="task-list">
             <div
-              v-for="task in dashboardStore.tasks.slice(0, 4)"
+              v-for="task in dashboardStore.tasks.slice(0, 5)"
               :key="task.id"
               class="task-item"
+              :class="{ completed: task.completed, selected: task.selected }"
             >
-              <span></span>
-              {{ task.title }}
+              <button
+                class="task-check"
+                @click="toggleTaskComplete(task)"
+              >
+                {{ task.completed ? "✓" : "" }}
+              </button>
+
+              <div class="task-body">
+                <input
+                  v-if="editingTaskId === task.id"
+                  v-model="editingTaskTitle"
+                  class="task-edit-input"
+                  @keyup.enter="saveEditedTask(task)"
+                />
+
+                <span v-else class="task-title">
+                  {{ task.title }}
+                </span>
+
+                <small v-if="task.selected">Selected for pomodoro</small>
+
+                <div class="task-actions">
+                  <button
+                    v-if="editingTaskId === task.id"
+                    @click="saveEditedTask(task)"
+                  >
+                    Save
+                  </button>
+
+                  <button
+                    v-else
+                    @click="startEditingTask(task)"
+                  >
+                    Edit
+                  </button>
+
+                  <button @click="selectTask(task)">
+                    Select
+                  </button>
+
+                  <button class="danger-text" @click="removeTask(task)">
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
           <div v-else class="empty-state">
             <p>No tasks yet.</p>
-            <small>You’ll add tasks before starting pomodoro sessions.</small>
+            <small>Add a task, then select it before starting pomodoro.</small>
           </div>
         </article>
 
@@ -598,65 +772,66 @@ function formatTimelineTime(timestamp) {
         <span>Last update: {{ dashboardStore.device.lastUpdate || "No updates yet" }}</span>
       </footer>
     </section>
+
     <section
-  v-if="dashboardStore.showPomodoroEndModal"
-  class="modal-backdrop"
->
-  <div class="session-modal">
-    <button class="modal-close" @click="closePomodoroModal">
-      ×
-    </button>
+      v-if="dashboardStore.showPomodoroEndModal"
+      class="modal-backdrop"
+    >
+      <div class="session-modal">
+        <button class="modal-close" @click="closePomodoroModal">
+          ×
+        </button>
 
-    <p class="eyebrow">Session complete</p>
+        <p class="eyebrow">Session complete</p>
 
-    <h2>What did you work on?</h2>
+        <h2>What did you work on?</h2>
 
-    <p class="modal-description">
-      Save a quick summary so your analytics can reflect what happened during this focus block.
-    </p>
+        <p class="modal-description">
+          Save a quick summary so your analytics can reflect what happened during this focus block.
+        </p>
 
-    <label>
-      Task
-      <input
-        v-model="sessionTask"
-        type="text"
-        placeholder="e.g. Write API endpoints"
-      />
-    </label>
+        <label>
+          Task
+          <input
+            v-model="sessionTask"
+            type="text"
+            placeholder="e.g. Write API endpoints"
+          />
+        </label>
 
-    <label>
-      Notes
-      <textarea
-        v-model="sessionNotes"
-        rows="4"
-        placeholder="What did you finish? Any blockers?"
-      ></textarea>
-    </label>
+        <label>
+          Notes
+          <textarea
+            v-model="sessionNotes"
+            rows="4"
+            placeholder="What did you finish? Any blockers?"
+          ></textarea>
+        </label>
 
-    <label>
-      Productivity rating
-      <select v-model="sessionRating">
-        <option :value="1">1 - Low focus</option>
-        <option :value="2">2 - Some progress</option>
-        <option :value="3">3 - Good</option>
-        <option :value="4">4 - Very good</option>
-        <option :value="5">5 - Deep work</option>
-      </select>
-    </label>
+        <label>
+          Productivity rating
+          <select v-model="sessionRating">
+            <option :value="1">1 - Low focus</option>
+            <option :value="2">2 - Some progress</option>
+            <option :value="3">3 - Good</option>
+            <option :value="4">4 - Very good</option>
+            <option :value="5">5 - Deep work</option>
+          </select>
+        </label>
 
-    <label class="checkbox-row">
-      <input
-        v-model="sessionProductive"
-        type="checkbox"
-      />
-      This session was productive
-    </label>
+        <label class="checkbox-row">
+          <input
+            v-model="sessionProductive"
+            type="checkbox"
+          />
+          This session was productive
+        </label>
 
-    <button class="save-session-btn" @click="savePomodoroSession">
-      Save Session
-    </button>
-  </div>
-</section>
+        <button class="save-session-btn" @click="savePomodoroSession">
+          Save Session
+        </button>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -974,13 +1149,6 @@ button:hover {
   transform: none;
 }
 
-@media (max-width: 680px) {
-  .pomodoro-selectors,
-  .pomodoro-actions {
-    grid-template-columns: 1fr;
-  }
-}
-
 .selected-task {
   margin: 0;
   padding: 14px 16px;
@@ -1043,11 +1211,47 @@ button:hover {
   cursor: pointer;
 }
 
-.color-preview {
-  width: 42px;
-  height: 42px;
-  border-radius: 15px;
-  box-shadow: 0 0 0 5px rgba(255, 250, 243, 0.9);
+.command-status {
+  margin-top: 14px;
+  padding: 15px;
+  border-radius: 18px;
+  background: #e4f0ea;
+}
+
+.command-status strong {
+  color: #1f2a37;
+}
+
+.command-status p {
+  margin: 5px 0 0;
+  color: #2f6f5e;
+  font-weight: 800;
+}
+
+.task-create-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.task-create-row input,
+.task-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid #eadcc9;
+  border-radius: 14px;
+  background: #fffdf9;
+  color: #24313f;
+  font-size: 15px;
+  outline: none;
+}
+
+.task-create-row input:focus,
+.task-edit-input:focus {
+  border-color: #65b891;
+  box-shadow: 0 0 0 4px rgba(101, 184, 145, 0.16);
 }
 
 .task-list {
@@ -1056,21 +1260,74 @@ button:hover {
 }
 
 .task-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: flex-start;
   padding: 14px;
   border-radius: 16px;
   background: #f7efe5;
   color: #4c423a;
+}
+
+.task-item.completed {
+  opacity: 0.65;
+}
+
+.task-item.completed .task-title {
+  text-decoration: line-through;
+}
+
+.task-item.selected {
+  background: #e4f0ea;
+}
+
+.task-check {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: #fffaf3;
+  color: #2f6f5e;
+  font-weight: 900;
+  flex: 0 0 auto;
+}
+
+.task-body {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.task-title {
+  display: block;
+  color: #1f2a37;
+  line-height: 1.35;
+  word-break: break-word;
+  font-weight: 900;
+}
+
+.task-body small {
+  color: #2f6f5e;
+  font-size: 12px;
   font-weight: 800;
 }
 
-.task-item span {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #65b891;
+.task-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.task-actions button {
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: #fffaf3;
+  color: #2f6f5e;
+  font-size: 12px;
+}
+
+.task-actions .danger-text {
+  color: #a54b3f;
 }
 
 .timeline-list {
@@ -1166,81 +1423,6 @@ button:hover {
   color: #7b6a5a;
   font-weight: 800;
   font-size: 14px;
-}
-
-.command-status {
-  margin-top: 14px;
-  padding: 15px;
-  border-radius: 18px;
-  background: #e4f0ea;
-}
-
-.command-status strong {
-  color: #1f2a37;
-}
-
-.command-status p {
-  margin: 5px 0 0;
-  color: #2f6f5e;
-  font-weight: 800;
-}
-
-@media (max-width: 1050px) {
-  .quick-grid,
-  .bottom-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 680px) {
-  .dashboard-page {
-    padding: 18px;
-  }
-
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .topbar-actions {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .connection-pill,
-  .topbar-actions button {
-    justify-content: center;
-    width: 100%;
-  }
-
-  .quick-grid,
-  .bottom-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .pomodoro-meta {
-    grid-template-columns: 1fr;
-  }
-
-  .timer-circle {
-    width: 200px;
-    height: 200px;
-  }
-
-  .timer-circle span {
-    font-size: 38px;
-  }
-
-  .dashboard-footer {
-    flex-direction: column;
-  }
-
-
 }
 
 .modal-backdrop {
@@ -1341,5 +1523,65 @@ button:hover {
   color: #fffaf3;
   font-size: 16px;
   box-shadow: 0 14px 30px rgba(47, 111, 94, 0.22);
+}
+
+@media (max-width: 1050px) {
+  .quick-grid,
+  .bottom-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .dashboard-page {
+    padding: 18px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .connection-pill,
+  .topbar-actions button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .quick-grid,
+  .bottom-grid,
+  .pomodoro-meta,
+  .pomodoro-selectors,
+  .pomodoro-actions,
+  .task-create-row {
+    grid-template-columns: 1fr;
+  }
+
+  .timer-circle {
+    width: 200px;
+    height: 200px;
+  }
+
+  .timer-circle span {
+    font-size: 38px;
+  }
+
+  .dashboard-footer {
+    flex-direction: column;
+  }
+
+  .task-item {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

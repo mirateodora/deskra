@@ -158,5 +158,25 @@ export const useDashboardStore = defineStore("dashboard", {
     setPomodoroEndModal(status) {
       this.showPomodoroEndModal = status;
     },
+
+    setTasks(tasks) {
+      this.tasks = tasks || [];
+    },
+
+    addOrUpdateTask(task) {
+      if (!task) return;
+
+      const index = this.tasks.findIndex((item) => item.id === task.id);
+
+      if (index === -1) {
+        this.tasks.unshift(task);
+      } else {
+        this.tasks[index] = task;
+      }
+    },
+
+    removeTask(taskId) {
+      this.tasks = this.tasks.filter((task) => task.id !== taskId);
+    },
   },
 });

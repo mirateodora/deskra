@@ -7,6 +7,7 @@ from app.routes.auth_routes import auth_bp
 from app.routes.simulator_routes import simulator_bp
 from app.routes.settings_routes import settings_bp
 from app.routes.pomodoro_routes import pomodoro_bp
+from app.routes.tasks_routes import tasks_bp
 
 def create_app():
     app = Flask(__name__)
@@ -20,6 +21,7 @@ def create_app():
     app.register_blueprint(simulator_bp, url_prefix="/api/simulator")
     app.register_blueprint(settings_bp, url_prefix="/api/settings")
     app.register_blueprint(pomodoro_bp, url_prefix="/api/pomodoro")
+    app.register_blueprint(tasks_bp, url_prefix="/api/tasks")
 
     @app.route("/api/health")
     def health():

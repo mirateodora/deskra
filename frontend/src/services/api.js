@@ -141,7 +141,31 @@ export const api = {
     method: "POST",
     body: JSON.stringify(data),
   });
-},
+  },
+
+  getTasks() {
+    return request("/tasks");
+  },
+
+  createTask(title) {
+    return request("/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    });
+  },
+
+  updateTask(taskId, data) {
+    return request(`/tasks/${taskId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteTask(taskId) {
+    return request(`/tasks/${taskId}`, {
+      method: "DELETE",
+    });
+  },
 };
 
 export default api;

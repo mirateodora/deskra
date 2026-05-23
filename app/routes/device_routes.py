@@ -3,7 +3,7 @@ from app.extensions import socketio
 from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands, update_sensors, update_fan_state, update_led_color, update_settings
 from app.services.socket_service import emit_socket_event, emit_sensor_update, emit_timeline_update, emit_actuator_update, emit_settings_update
 from app.services.auto_fan_service import evaluate_auto_fan
-from app.services.device_state import set_manual_fan_override
+from app.services.device_state import set_manual_fan_override, get_selected_task
 device_bp = Blueprint("device", __name__)
 
 
@@ -230,4 +230,23 @@ def set_led():
         "actuators": actuator_data,
         "command": command,
         "timelineEvent": timeline_event
+    })
+
+@device_bp.route("/tasks/active", methods=["GET"])
+def get_active_task_for_device():
+    selected_task = get_selected_task()
+
+    if not selected_task:
+        return jsonify({
+            "status": "ok",
+            "hasTask": False,
+            "task": None,
+            "message": "No task selected"
+        })
+
+    return jsonify({
+        "status": "ok",
+        "hasTask": True,
+        "task": selected_task,
+        "message": selected_task["title"]
     })
