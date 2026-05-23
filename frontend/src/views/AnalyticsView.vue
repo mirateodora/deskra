@@ -1,10 +1,14 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useDashboardStore } from "@/stores/dashboardStore";
+import api from "@/services/api"
 
 const router = useRouter();
 const dashboardStore = useDashboardStore();
+const analyticsSummary = ref(null);
+const analyticsLoading = ref(false);
+const analyticsError = ref("");
 
 const sessions = computed(() => {
   return dashboardStore.timeline.filter((event) => {
@@ -17,33 +21,35 @@ const sessions = computed(() => {
 });
 
 const totalFocusMinutes = computed(() => {
-  const completedSessions = dashboardStore.timeline.filter((event) =>
-    event.message?.toLowerCase().includes("finished")
-  );
-
-  if (!completedSessions.length) return 0;
-
-  return completedSessions.length * dashboardStore.pomodoro.focusMinutes;
+  return analyticsSummary.value?.today?.focusMinutes ?? 0;
 });
 
 const totalSessions = computed(() => {
-  return sessions.value.length;
+  return analyticsSummary.value?.today?.sessions ?? 0;
 });
 
 const deskAbsences = computed(() => {
-  return dashboardStore.pomodoro.deskAbsenceCount || 0;
+  return analyticsSummary.value?.today?.deskAbsences ?? 0;
 });
 
 const fanActivations = computed(() => {
-  return dashboardStore.timeline.filter((event) =>
-    event.message?.toLowerCase().includes("fan")
-  ).length;
+  return analyticsSummary.value?.today?.fanActivations ?? 0;
 });
 
 const averageTemperature = computed(() => {
-  if (dashboardStore.sensors.temperature === null) return "--";
-  return dashboardStore.sensors.temperature;
+  return analyticsSummary.value?.today?.averageTemperature ?? "--";
 });
+
+const averageHumidity = computed(() => {
+  return analyticsSummary.value?.today?.averageHumidity ?? "--";
+});
+
+const completedTasks = computed(() => {
+  return analyticsSummary.value?.today?.completedTasks ?? 0;
+});
+
+
+
 
 const weeklyFocusData = computed(() => {
   const base = [45, 25, 60, 35, 80, 30, totalFocusMinutes.value || 50];
@@ -118,6 +124,24 @@ function goToDashboard() {
 function goBack() {
   router.back();
 }
+
+async function fetchAnalyticsSummary() {
+  analyticsLoading.value = true;
+  analyticsError.value = "";
+
+  try {
+    const response = await api.getAnalyticsSummary();
+    analyticsSummary.value = response;
+  } catch (error) {
+    analyticsError.value = error.message || "Failed to load analytics summary.";
+  } finally {
+    analyticsLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  fetchAnalyticsSummary();
+});
 </script>
 
 <template>
@@ -142,6 +166,14 @@ function goBack() {
           </button>
         </div>
       </header>
+
+      <div v-if="analyticsLoading" class="analytics-notice">
+        Loading analytics summary...
+      </div>
+
+      <div v-if="analyticsError" class="analytics-notice error">
+        {{ analyticsError }}
+      </div>
 
       <section class="score-card">
         <div>
@@ -185,14 +217,14 @@ function goBack() {
 
         <article class="summary-card">
           <span>🌡️</span>
-          <p>Temperature</p>
+          <p>Avg temperature</p>
           <h2>{{ averageTemperature }}°C</h2>
         </article>
 
         <article class="summary-card">
-          <span>🌿</span>
-          <p>Comfort</p>
-          <h2>{{ comfortStatus }}</h2>
+          <span>✅</span>
+          <p>Completed tasks</p>
+          <h2>{{ completedTasks }}</h2>
         </article>
       </section>
 
@@ -649,6 +681,20 @@ button:hover {
   margin: 0;
   color: #8b735f;
   line-height: 1.6;
+}
+
+.analytics-notice {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #e4f0ea;
+  color: #2f6f5e;
+  font-weight: 900;
+}
+
+.analytics-notice.error {
+  background: #ffe7e1;
+  color: #a54b3f;
 }
 
 @media (max-width: 1100px) {

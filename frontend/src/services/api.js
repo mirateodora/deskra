@@ -166,6 +166,22 @@ export const api = {
       method: "DELETE",
     });
   },
+
+  getSettings() {
+    return request("/settings");
+  },
+
+  updateSettings(settings) {
+    return request("/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    });
+  },
+
+  getAnalyticsSummary() {
+    return request("/analytics/summary");
+  },
+
 };
 
 export default api;

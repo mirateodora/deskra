@@ -44,7 +44,9 @@ DEVICE_STATE = {
         "temperatureThreshold": 26,
         "defaultFocusMinutes": 25,
         "defaultBreakMinutes": 5,
-        "defaultLedColor": "#ff0000",
+        "defaultLedColor": "#d66b5d",
+        "focusLedColor": "#d66b5d",
+        "breakLedColor": "#65b891",
         "musicEnabled": False
     },
 
@@ -56,7 +58,9 @@ DEVICE_STATE = {
 
     "pomodoroSessions": [],
 
-    "commands": []
+    "commands": [],
+
+    "sensorReadings": [],
 }
 
 def now_iso():
@@ -480,3 +484,24 @@ def get_selected_task():
             return task
 
     return None
+
+def add_sensor_reading(temperature=None, humidity=None, presence=None, metadata=None):
+    if metadata is None:
+        metadata = {}
+
+    reading = {
+        "id": len(DEVICE_STATE["sensorReadings"]) + 1,
+        "temperature": temperature,
+        "humidity": humidity,
+        "presence": presence,
+        "timestamp": now_iso(),
+        "metadata": metadata
+    }
+
+    DEVICE_STATE["sensorReadings"].insert(0, reading)
+
+    return reading
+
+
+def get_sensor_readings():
+    return DEVICE_STATE["sensorReadings"]

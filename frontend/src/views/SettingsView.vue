@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useDashboardStore } from "@/stores/dashboardStore";
+import api from "@/services/api"
 
 const router = useRouter();
 const dashboardStore = useDashboardStore();
@@ -46,55 +47,35 @@ onMounted(() => {
     dashboardStore.settings.musicEnabled || false;
 });
 
-function saveSettings() {
-  const updatedUser = dashboardStore.auth.currentUser
-    ? {
-        ...dashboardStore.auth.currentUser,
-        name: name.value.trim() || dashboardStore.auth.currentUser.name,
-        focusLedColor: focusLedColor.value,
-        breakLedColor: breakLedColor.value,
-      }
-    : null;
+async function saveSettings() {
+  savedMessage.value = "";
 
-  dashboardStore.applyAuthUpdate({
-    currentUser: updatedUser,
-  });
-
-  dashboardStore.applySettingsUpdate({
-    focusLedColor: focusLedColor.value,
-    breakLedColor: breakLedColor.value,
-    defaultFocusMinutes: Number(focusMinutes.value),
-    defaultBreakMinutes: Number(breakMinutes.value),
-    temperatureThreshold: Number(temperatureThreshold.value),
-    musicEnabled: Boolean(musicEnabled.value),
-  });
-
-  dashboardStore.applyPomodoroUpdate({
-    focusMinutes: Number(focusMinutes.value),
-    breakMinutes: Number(breakMinutes.value),
-    remainingSeconds: Number(focusMinutes.value) * 60,
-  });
-
-  dashboardStore.addTimelineEvent({
-    id: Date.now(),
-    type: "settings",
-    message: "Settings updated from dashboard",
-    metadata: {
+  try {
+    const response = await api.updateSettings({
       focusLedColor: focusLedColor.value,
       breakLedColor: breakLedColor.value,
-      focusMinutes: Number(focusMinutes.value),
-      breakMinutes: Number(breakMinutes.value),
+      defaultFocusMinutes: Number(focusMinutes.value),
+      defaultBreakMinutes: Number(breakMinutes.value),
       temperatureThreshold: Number(temperatureThreshold.value),
       musicEnabled: Boolean(musicEnabled.value),
-    },
-    timestamp: new Date().toISOString(),
-  });
+    });
 
-  savedMessage.value = "Settings saved.";
+    dashboardStore.applySettingsUpdate(response.settings);
+    dashboardStore.applyPomodoroUpdate(response.pomodoro);
+    dashboardStore.applyAuthUpdate(response.auth);
 
-  setTimeout(() => {
-    savedMessage.value = "";
-  }, 2500);
+    if (response.command) {
+      dashboardStore.commands.unshift(response.command);
+    }
+
+    savedMessage.value = "Settings saved to backend.";
+
+    setTimeout(() => {
+      savedMessage.value = "";
+    }, 2500);
+  } catch (error) {
+    savedMessage.value = error.message || "Failed to save settings.";
+  }
 }
 
 function goToDashboard() {
