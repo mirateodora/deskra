@@ -318,10 +318,6 @@ async function createTask() {
 
     dashboardStore.setTasks(response.tasks);
 
-    if (response.timelineEvent) {
-      dashboardStore.addTimelineEvent(response.timelineEvent);
-    }
-
     newTaskTitle.value = "";
   } catch (error) {
     console.error("Failed to create task:", error);
@@ -345,9 +341,6 @@ async function saveEditedTask(task) {
 
     dashboardStore.setTasks(response.tasks);
 
-    if (response.timelineEvent) {
-      dashboardStore.addTimelineEvent(response.timelineEvent);
-    }
 
     editingTaskId.value = null;
     editingTaskTitle.value = "";
@@ -364,9 +357,6 @@ async function toggleTaskComplete(task) {
 
     dashboardStore.setTasks(response.tasks);
 
-    if (response.timelineEvent) {
-      dashboardStore.addTimelineEvent(response.timelineEvent);
-    }
   } catch (error) {
     console.error("Failed to complete task:", error);
   }
@@ -384,9 +374,6 @@ async function selectTask(task) {
       selectedTask: task.title,
     });
 
-    if (response.timelineEvent) {
-      dashboardStore.addTimelineEvent(response.timelineEvent);
-    }
   } catch (error) {
     console.error("Failed to select task:", error);
   }
@@ -398,9 +385,6 @@ async function removeTask(task) {
 
     dashboardStore.setTasks(response.tasks);
 
-    if (response.timelineEvent) {
-      dashboardStore.addTimelineEvent(response.timelineEvent);
-    }
   } catch (error) {
     console.error("Failed to delete task:", error);
   }
