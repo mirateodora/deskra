@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from app.extensions import socketio
-from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands
-from app.services.socket_service import emit_socket_event
+from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands, update_sensors
+from app.services.socket_service import emit_socket_event, emit_sensor_update, emit_timeline_update
 device_bp = Blueprint("device", __name__)
 
 
@@ -108,3 +108,45 @@ def pending_commands():
         "status": "ok",
         "commands": commands
     }
+
+@device_bp.route("/sensors", methods=["POST"])
+def receive_sensor_data():
+    data = request.get_json() or {}
+
+    temperature = data.get("temperature")
+    humidity = data.get("humidity")
+    presence = data.get("presence")
+
+    sensor_data = update_sensors(
+        temperature=temperature,
+        humidity=humidity,
+        presence=presence
+    )
+
+    emit_sensor_update(sensor_data)
+
+    if presence is not None:
+        if presence:
+            timeline_event = add_timeline_event(
+                event_type="sensor",
+                message="Presence detected by desk sensor",
+                metadata={
+                    "source": "sensor_update"
+                }
+            )
+        else:
+            timeline_event = add_timeline_event(
+                event_type="sensor",
+                message="Presence lost by desk sensor",
+                metadata={
+                    "source": "sensor_update"
+                }
+            )
+
+        emit_timeline_update(timeline_event)
+
+    return jsonify({
+        "status": "ok",
+        "message": "Sensor data received",
+        "sensors": sensor_data
+    })

@@ -4,7 +4,7 @@ from flask_cors import CORS
 from app.extensions import socketio
 from app.routes.device_routes import device_bp
 from app.routes.auth_routes import auth_bp
-
+from app.routes.simulator_routes import simulator_bp
 
 def create_app():
     app = Flask(__name__)
@@ -15,6 +15,7 @@ def create_app():
 
     app.register_blueprint(device_bp, url_prefix="/api/device")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
+    app.register_blueprint(simulator_bp, url_prefix="/api/simulator")
 
     @app.route("/api/health")
     def health():
