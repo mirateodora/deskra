@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from app.extensions import socketio
-from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands, update_sensors, update_fan_state, update_led_color, update_settings, add_sensor_reading
-from app.services.socket_service import emit_socket_event, emit_sensor_update, emit_timeline_update, emit_actuator_update, emit_settings_update
+from app.services.device_state import get_device_state, add_timeline_event, add_access_log, add_command, get_pending_commands, consume_pending_commands, update_sensors, update_fan_state, update_led_color, update_settings, add_sensor_reading, update_pomodoro_state
+from app.services.socket_service import emit_socket_event, emit_sensor_update, emit_timeline_update, emit_actuator_update, emit_settings_update, emit_pomodoro_update
 from app.services.auto_fan_service import evaluate_auto_fan
 from app.services.device_state import set_manual_fan_override, get_selected_task
 device_bp = Blueprint("device", __name__)
@@ -259,4 +259,63 @@ def get_active_task_for_device():
         "hasTask": True,
         "task": selected_task,
         "message": selected_task["title"]
+    })
+
+@device_bp.route("/settings", methods=["GET"])
+def get_device_settings():
+    state = get_device_state()
+
+    return jsonify({
+        "status": "ok",
+        "settings": state["settings"],
+        "pomodoro": {
+            "focusMinutes": state["pomodoro"]["focusMinutes"],
+            "breakMinutes": state["pomodoro"]["breakMinutes"],
+            "mode": state["pomodoro"]["mode"],
+            "running": state["pomodoro"]["running"],
+            "remainingSeconds": state["pomodoro"]["remainingSeconds"]
+        },
+        "actuators": state["actuators"]
+    })
+
+@device_bp.route("/pomodoro-state", methods=["POST"])
+def receive_device_pomodoro_state():
+    data = request.get_json() or {}
+
+    running = data.get("running")
+    mode = data.get("mode")
+    remaining_seconds = data.get("remainingSeconds")
+
+    update_payload = {}
+
+    if running is not None:
+        update_payload["running"] = bool(running)
+
+    if mode is not None:
+        update_payload["mode"] = mode
+
+    if remaining_seconds is not None:
+        update_payload["remaining_seconds"] = int(remaining_seconds)
+
+    pomodoro_data = update_pomodoro_state(**update_payload)
+
+    timeline_event = add_timeline_event(
+        event_type="pomodoro",
+        message="Pomodoro state updated from ESP32",
+        metadata={
+            "source": "esp32",
+            "running": running,
+            "mode": mode,
+            "remainingSeconds": remaining_seconds
+        }
+    )
+
+    emit_pomodoro_update(pomodoro_data)
+    emit_timeline_update(timeline_event)
+
+    return jsonify({
+        "status": "ok",
+        "message": "Pomodoro state received from device",
+        "pomodoro": pomodoro_data,
+        "timelineEvent": timeline_event
     })

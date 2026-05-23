@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 from app.services.device_state import update_auth_state, add_timeline_event, add_access_log
 from app.services.socket_service import emit_socket_event
+import os
+from werkzeug.utils import secure_filename
 
 FAKE_USERS = [
     {
@@ -19,6 +21,34 @@ FAKE_USERS = [
     }
 ]
 
+REGISTERED_FACES_FOLDER = "registered_faces"
+ALLOWED_FACE_EXTENSIONS = {"png", "jpg", "jpeg"}
+
+
+def allowed_face_file(filename):
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_FACE_EXTENSIONS
+    )
+
+
+def save_face_image(file, user_id, name):
+    if not file or file.filename == "":
+        return None
+
+    if not allowed_face_file(file.filename):
+        return None
+
+    os.makedirs(REGISTERED_FACES_FOLDER, exist_ok=True)
+
+    extension = file.filename.rsplit(".", 1)[1].lower()
+    safe_name = secure_filename(name.lower().replace(" ", "_"))
+    filename = f"user_{user_id}_{safe_name}.{extension}"
+
+    file_path = os.path.join(REGISTERED_FACES_FOLDER, filename)
+    file.save(file_path)
+
+    return file_path
 
 def find_fake_user(name, pin):
     for user in FAKE_USERS:
@@ -126,7 +156,12 @@ def manual_login():
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
-    data = request.get_json() or {}
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        data = request.form
+        face_file = request.files.get("faceImage")
+    else:
+        data = request.get_json() or {}
+        face_file = None
 
     name = data.get("name", "").strip()
     pin = data.get("pin", "").strip()
@@ -174,12 +209,21 @@ def register():
             "message": "PIN must have at least 4 digits"
         }), 400
 
+    new_user_id = len(FAKE_USERS) + 1
+
+    face_image_path = save_face_image(
+        face_file,
+        new_user_id,
+        name
+    )
+
     new_user = {
-        "id": len(FAKE_USERS) + 1,
+        "id": new_user_id,
         "name": name,
         "pin": pin,
         "focusLedColor": focus_led_color,
-        "breakLedColor": break_led_color
+        "breakLedColor": break_led_color,
+        "faceImagePath": face_image_path
     }
 
     FAKE_USERS.append(new_user)
@@ -188,7 +232,8 @@ def register():
         "id": new_user["id"],
         "name": new_user["name"],
         "focusLedColor": new_user["focusLedColor"],
-        "breakLedColor": new_user["breakLedColor"]
+        "breakLedColor": new_user["breakLedColor"],
+        "faceImagePath": new_user["faceImagePath"]
     }
 
     auth_state = update_auth_state(
@@ -326,4 +371,94 @@ def fake_face_failure():
         "status": "ok",
         "message": "Fake face login failure triggered",
         "reason": "No matching face found"
+    })
+
+@auth_bp.route("/face-login", methods=["POST"])
+def face_login():
+    data = request.get_json() or {}
+
+    recognized = data.get("recognized", False)
+    name = data.get("name", "Face User")
+
+    if not recognized:
+        timeline_event = add_timeline_event(
+            event_type="auth",
+            message="Face ID failed from ESP32-CAM",
+            metadata={
+                "method": "face_id",
+                "source": "esp32_cam"
+            }
+        )
+
+        access_log = add_access_log(
+            user=None,
+            method="face_id",
+            success=False,
+            message="ESP32-CAM Face ID login failed",
+            metadata={
+                "source": "esp32_cam"
+            }
+        )
+
+        emit_socket_event("login_failed", {
+            "reason": "No matching face found",
+            "timelineEvent": timeline_event,
+            "accessLog": access_log
+        })
+
+        return jsonify({
+            "status": "ok",
+            "success": False,
+            "message": "Face login failed",
+            "reason": "No matching face found"
+        }), 401
+
+    fake_user = {
+        "id": 99,
+        "name": name,
+        "focusLedColor": data.get("focusLedColor", "#d66b5d"),
+        "breakLedColor": data.get("breakLedColor", "#65b891")
+    }
+
+    auth_state = update_auth_state(
+        locked=False,
+        current_user=fake_user,
+        login_method="face_id"
+    )
+
+    timeline_event = add_timeline_event(
+        event_type="auth",
+        message=f"Face ID login successful for {name}",
+        metadata={
+            "user": fake_user,
+            "method": "face_id",
+            "source": "esp32_cam"
+        }
+    )
+
+    access_log = add_access_log(
+        user=fake_user,
+        method="face_id",
+        success=True,
+        message=f"ESP32-CAM Face ID login successful for {name}",
+        metadata={
+            "source": "esp32_cam"
+        }
+    )
+
+    emit_socket_event("login_success", {
+        "user": fake_user,
+        "auth": auth_state,
+        "timelineEvent": timeline_event,
+        "accessLog": access_log
+    })
+
+    return jsonify({
+        "status": "ok",
+        "success": True,
+        "message": "Face login successful",
+        "user": fake_user,
+        "auth": auth_state,
+        "timelineEvent": timeline_event,
+        "accessLog": access_log
     })
