@@ -725,7 +725,7 @@ onMounted(() => {
         </article>
       </section>
 
-      <section class="bottom-grid">
+      <section class="bottom-grid" v-if="!isGuest">
         <button class="nav-card" @click="goToSettings">
           <span>⚙️</span>
           <strong>Settings</strong>
