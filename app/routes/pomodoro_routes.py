@@ -6,7 +6,8 @@ from app.services.device_state import (
     update_pomodoro_state,
     add_timeline_event,
     add_command,
-    add_pomodoro_session
+    add_pomodoro_session,
+    now_iso
 )
 
 from app.services.socket_service import (
@@ -50,7 +51,8 @@ def start_pomodoro():
         remaining_seconds=focus_minutes * 60,
         focus_minutes=focus_minutes,
         break_minutes=break_minutes,
-        selected_task=selected_task
+        selected_task=selected_task,
+        started_at=now_iso()
     )
 
     command = add_command(
@@ -102,7 +104,8 @@ def pause_pomodoro():
 
     pomodoro_data = update_pomodoro_state(
         running=False,
-        mode="paused"
+        mode="paused",
+        paused_mode=current["mode"]
     )
 
     command = add_command(
@@ -144,9 +147,12 @@ def resume_pomodoro():
             "message": "Pomodoro is not paused"
         }), 400
 
+    previous_mode = current.get("pausedMode", "focus")
+
     pomodoro_data = update_pomodoro_state(
         running=True,
-        mode="focus"
+        mode=previous_mode,
+        paused_mode=None
     )
 
     command = add_command(

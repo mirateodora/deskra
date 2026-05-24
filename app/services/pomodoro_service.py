@@ -1,9 +1,11 @@
 from datetime import datetime
+import threading
+import time
 
-from app.extensions import socketio
+from flask import current_app
 
 from app.services.device_state import (
-    get_device_state,
+    DEVICE_STATE,
     update_pomodoro_state,
     add_timeline_event,
     add_command
@@ -15,54 +17,62 @@ from app.services.socket_service import (
     emit_socket_event
 )
 
-pomodoro_task_running = False
+_timer_generation = 0
+_timer_lock = threading.Lock()
 
 
 def start_backend_timer():
     """
-    Starts one backend timer loop.
-    The loop decreases remainingSeconds while pomodoro is running.
+    Starts a backend timer loop.
+    Uses Flask app context so DB-backed timeline/session functions work safely.
     """
 
-    global pomodoro_task_running
+    global _timer_generation
 
-    if pomodoro_task_running:
-        return
+    app = current_app._get_current_object()
 
-    pomodoro_task_running = True
-    socketio.start_background_task(run_pomodoro_timer)
+    with _timer_lock:
+        _timer_generation += 1
+        my_generation = _timer_generation
+
+    thread = threading.Thread(
+        target=run_pomodoro_timer,
+        args=(app, my_generation),
+        daemon=True
+    )
+
+    thread.start()
 
 
-def run_pomodoro_timer():
-    global pomodoro_task_running
-
+def run_pomodoro_timer(app, my_generation):
     while True:
-        socketio.sleep(1)
+        time.sleep(1)
 
-        state = get_device_state()
-        pomodoro = state["pomodoro"]
+        with _timer_lock:
+            if _timer_generation != my_generation:
+                break
 
-        if not pomodoro["running"]:
-            pomodoro_task_running = False
-            break
+        with app.app_context():
+            pomodoro = DEVICE_STATE["pomodoro"]
 
-        remaining = int(pomodoro["remainingSeconds"])
+            if not pomodoro["running"]:
+                break
 
-        if remaining > 0:
-            updated_pomodoro = update_pomodoro_state(
-                remaining_seconds=remaining - 1
-            )
+            remaining = int(pomodoro["remainingSeconds"])
 
-            emit_pomodoro_update(updated_pomodoro)
-            continue
+            if remaining > 0:
+                updated_pomodoro = update_pomodoro_state(
+                    remaining_seconds=remaining - 1
+                )
 
-        handle_timer_finished()
+                emit_pomodoro_update(updated_pomodoro)
+                continue
+
+            handle_timer_finished()
 
 
 def handle_timer_finished():
-    state = get_device_state()
-    pomodoro = state["pomodoro"]
-
+    pomodoro = DEVICE_STATE["pomodoro"]
     current_mode = pomodoro["mode"]
 
     if current_mode == "focus":

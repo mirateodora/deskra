@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from app.extensions import db
@@ -34,6 +35,7 @@ DEVICE_STATE = {
     "pomodoro": {
         "running": False,
         "mode": "idle",
+        "pausedMode": None,
         "remainingSeconds": 25 * 60,
         "focusMinutes": 25,
         "breakMinutes": 5,
@@ -185,7 +187,8 @@ def update_pomodoro_state(
     selected_task=None,
     started_at=None,
     ended_at=None,
-    desk_absence_count=None
+    desk_absence_count=None,
+    paused_mode=None
 ):
     if running is not None:
         DEVICE_STATE["pomodoro"]["running"] = bool(running)
@@ -213,6 +216,9 @@ def update_pomodoro_state(
 
     if desk_absence_count is not None:
         DEVICE_STATE["pomodoro"]["deskAbsenceCount"] = int(desk_absence_count)
+
+    if paused_mode is not None:
+        DEVICE_STATE["pomodoro"]["pausedMode"] = paused_mode
 
     return DEVICE_STATE["pomodoro"]
 
@@ -269,6 +275,7 @@ def reset_device_state():
 
     DEVICE_STATE["pomodoro"]["running"] = False
     DEVICE_STATE["pomodoro"]["mode"] = "idle"
+    DEVICE_STATE["pomodoro"]["pausedMode"] = None
     DEVICE_STATE["pomodoro"]["remainingSeconds"] = DEVICE_STATE["settings"]["defaultFocusMinutes"] * 60
     DEVICE_STATE["pomodoro"]["selectedTask"] = None
     DEVICE_STATE["pomodoro"]["startedAt"] = None
@@ -337,7 +344,7 @@ def add_command(command_type, value=None, payload=None):
         payload = {}
 
     command = {
-        "id": len(DEVICE_STATE["commands"]) + 1,
+        "id": str(uuid.uuid4()),
         "type": command_type,
         "value": value,
         "payload": payload,
